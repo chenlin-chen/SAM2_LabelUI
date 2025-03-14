@@ -259,7 +259,7 @@ class CustomRadio(gr.Radio):
 
 
 class LabelMode(Enum):
-    PERSON = "Person"
+    #PERSON = "Person"
     FULL_BODY_SKIN = "FullBodySkin"
     HAND_PART_SKIN = "HandPartSkin"  # Added new label for "手部"
     SKIN_UNDER_LENSES  = "SkinUnderLenses"
@@ -307,7 +307,6 @@ class ImageSegUI(UI):
 
         self.sam_predictor = self.init_sam_model(model_cfg, checkpoint_dir)
         self.prompts_label = self.SetPromptLabels()
-        self.label_mode = LabelMode.PERSON.value
 
     def init_sam_model(self, model_cfg, checkpoint_dir):
         sam_predictor = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint_dir))
@@ -330,10 +329,10 @@ class ImageSegUI(UI):
                     src_dir_field = gr.Label(self.src_img_dir_name, label="Image subdirectory name", elem_id="custom-label")
                     mask_dir_field = gr.Label(self.dst_mask_dir_name, label="Mask subdirectory name", elem_id="custom-label")
 
-            img_dirs = listdir(self.src_img_dir)
+            
             with gr.Row():
                 img_dirs_dropdown = gr.Dropdown(
-                    label="Image directories", choices=img_dirs, value=None,
+                    label="Image directories", choices=[], value=None,
                 )                
 
                 selected_img_dir_text = gr.Text(
@@ -374,6 +373,8 @@ class ImageSegUI(UI):
             next_btn.click(self.update_img_index_by_btn, inputs=[image_index_slider, gr.State("next")], outputs=image_index_slider)
             image_index_slider.change(self.update_img_index_event, [image_index_slider], [sam_display, instruction])
 
+            demo.load(self.update_img_dir_dropdown, outputs=[img_dirs_dropdown])
+
         return demo
 
 
@@ -388,7 +389,7 @@ class ImageSegUI(UI):
                     choices=[mode.value for mode in LabelMode],  # List of enum values
                     label="Select Label Mode",  # Label for the radio buttons
                     type="value",  # Option to return the value of the selection
-                    value=self.label_mode
+                    value=list(LabelMode)[0].value
                 )
 
                 instruction = gr.Textbox(
@@ -410,17 +411,22 @@ class ImageSegUI(UI):
         label_mode_radio.change(self.handle_label_mode, [label_mode_radio, mask_opacity_slider], outputs=[display_view, instruction])
         pos_button.click(self.handle_set_positive, outputs=[instruction])
         neg_button.click(self.handle_set_negative, outputs=[instruction])
-        clear_button.click(self.clear_points, outputs=[display_view, instruction])
-        undo_button.click(self.undo_points, [mask_opacity_slider], outputs=[display_view])
+        clear_button.click(self.clear_points, [label_mode_radio], outputs=[display_view, instruction])
+        undo_button.click(self.undo_points, [label_mode_radio, mask_opacity_slider], outputs=[display_view])
 
 
-        save_button.click(self.save_mask_event, [image_index_slider], outputs=[instruction, image_index_slider])        
-        display_view.select(self.get_select_coords, [mask_opacity_slider], [display_view])
+        save_button.click(self.save_mask_event, [label_mode_radio, image_index_slider], outputs=[instruction, image_index_slider])        
+        display_view.select(self.get_select_coords, [label_mode_radio, mask_opacity_slider], [display_view])
 
-        mask_opacity_slider.change(self.update_mask_opacity, [mask_opacity_slider], [display_view])
-        preview_button.click(self.preview_mask_event, outputs=[pre_view_img])
+        mask_opacity_slider.change(self.update_mask_opacity, [label_mode_radio, mask_opacity_slider], [display_view])
+        preview_button.click(self.preview_mask_event, [label_mode_radio], outputs=[pre_view_img])
 
         return display_view, instruction
+
+    def update_img_dir_dropdown(self):
+        img_dirs = listdir(self.src_img_dir)
+
+        return  gr.update(choices=img_dirs)
 
     def select_image_dir(self, img_dir_name):
         select_img_dir = os.path.join(self.src_img_dir, img_dir_name)
@@ -507,13 +513,13 @@ class ImageSegUI(UI):
         elif direction == "next":
             return min(current_value + 1, len(self.img_paths)-1)
 
-    def save_mask_event(self, img_index):
+    def save_mask_event(self, label_mode, img_index):
         src_img_path = self.img_paths[self.img_index_current]
 
         #for prompt in self.prompts_label.values():
         #    prompt.save_mask_to_dir(self.dst_mask_dir, src_img_path,)
 
-        prompt_label = self.prompts_label[self.label_mode]
+        prompt_label = self.prompts_label[label_mode]
         prompt_label.save_mask_to_dir(self.dst_mask_dir, src_img_path)
 
         '''
@@ -541,12 +547,12 @@ class ImageSegUI(UI):
             with open(processed_indices_file, 'w') as f:
                 json.dump(list(self.processed_indices), f)
 
-    def preview_mask_event(self):
+    def preview_mask_event(self, label_mode):
         if self.img_index_current < 0:
             return None
 
         src_img_path = self.img_paths[self.img_index_current]
-        prompt = self.prompts_label[self.label_mode]
+        prompt = self.prompts_label[label_mode]
 
         index_mask = prompt.index_mask
         if index_mask is None:
@@ -559,16 +565,15 @@ class ImageSegUI(UI):
         return out_img
 
     def handle_label_mode(self, label_mode: LabelMode, mask_opacity) -> str:
-        self.label_mode = label_mode
         message = f"Selected Label: {label_mode}"
 
-        prompt_label = self.prompts_label[self.label_mode]
+        prompt_label = self.prompts_label[label_mode]
         index_mask = prompt_label.index_mask
 
         if index_mask is None:
             return self.display_image, message
 
-        out = self.draw_label_result(index_mask, mask_opacity)
+        out = self.draw_label_result(label_mode, index_mask, mask_opacity)
         return out, message
 
     def handle_set_positive(self) -> str:
@@ -583,22 +588,22 @@ class ImageSegUI(UI):
 
         return "Selecting negative points"
 
-    def clear_points(self) -> Tuple[np.ndarray, str]:
-        message = self.prompts_label[self.label_mode].clear_points()
+    def clear_points(self, label_mode) -> Tuple[np.ndarray, str]:
+        message = self.prompts_label[label_mode].clear_points()
 
         return self.display_image, message
 
-    def undo_points(self, mask_opacity):
-        prompt_label = self.prompts_label[self.label_mode]
+    def undo_points(self, label_mode, mask_opacity):
+        prompt_label = self.prompts_label[label_mode]
         index_mask = prompt_label.undo_points()
 
         if index_mask is None:
             return self.display_image
 
         guru.debug(f"{index_mask.shape=}")
-        return self.draw_label_result(index_mask, mask_opacity)
+        return self.draw_label_result(label_mode, index_mask, mask_opacity)
 
-    def get_select_coords(self, mask_opacity, evt: gr.SelectData): 
+    def get_select_coords(self, label_mode, mask_opacity, evt: gr.SelectData): 
 
         def toSAMCoordinates(x, y):
             h, w = self.display_image.shape[:2]
@@ -614,22 +619,22 @@ class ImageSegUI(UI):
         x = evt.index[1]  # type: ignore
         y = evt.index[0]  # type: ignore
         x, y = toSAMCoordinates(x, y)
-        prompt_label = self.prompts_label[self.label_mode]
+        prompt_label = self.prompts_label[label_mode]
         index_mask = prompt_label.add_point(x, y)
 
         guru.debug(f"{index_mask.shape=}")
-        return self.draw_label_result(index_mask, mask_opacity)
+        return self.draw_label_result(label_mode, index_mask, mask_opacity)
 
-    def update_mask_opacity(self, mask_opacity):
-        prompt_label = self.prompts_label[self.label_mode]
+    def update_mask_opacity(self, label_mode, mask_opacity):
+        prompt_label = self.prompts_label[label_mode]
         index_mask = prompt_label.index_mask
 
         if index_mask is None:
             return self.display_image
 
-        return self.draw_label_result(index_mask, mask_opacity)
+        return self.draw_label_result(label_mode, index_mask, mask_opacity)
 
-    def draw_label_result(self, index_mask, mask_opacity):
+    def draw_label_result(self, label_mode, index_mask, mask_opacity):
 
         def toDisPlayCoordinates(points):
             h, w = self.display_image.shape[:2]
@@ -646,7 +651,7 @@ class ImageSegUI(UI):
         palette = get_hls_palette(index_mask.max() + 1)
         color_mask = palette[index_mask]
 
-        prompt_label = self.prompts_label[self.label_mode]
+        prompt_label = self.prompts_label[label_mode]
         disply_points = toDisPlayCoordinates(prompt_label.selected_points)
 
         out_u = compose_img_mask(self.display_image, color_mask, 1.0-mask_opacity)
