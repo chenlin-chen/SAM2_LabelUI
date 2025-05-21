@@ -57,7 +57,8 @@ Follow these steps to get the project up and running locally.
 Ensure you have Python 3.8+ and pip installed. Then, install the required libraries:
 * bash
   ```sh
-  pip install gradio
+  pip install gradio==4.40.0
+  pip install loguru
   ```
 
 ### Installation
