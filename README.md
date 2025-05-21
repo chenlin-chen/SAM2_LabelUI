@@ -108,7 +108,11 @@ This will launch a Gradio web interface in your browser where you can upload ima
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+### After Launching the App
 
+Once the app is launched, the following screen appears:
+
+<img src="assets/app_launch_result.png" width="1200"/>
 
 <!-- LICENSE -->
 ## License
