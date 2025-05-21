@@ -24,9 +24,13 @@ from typing import Tuple
 from enum import Enum
 from loguru import logger as guru
 
-from sam2.build_sam import build_sam2
-from sam2.sam2_image_predictor import SAM2ImagePredictor
-#from segment_anything import SamPredictor, sam_model_registry
+try:
+    from sam2.build_sam import build_sam2
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+    #from segment_anything import SamPredictor, sam_model_registry
+except ImportError as e:
+    print(f"Error importing module: {e}")
+    
 from .ui_base import UI
 
 
@@ -240,7 +244,8 @@ def compose_img_mask(img, color_mask, fac: float = 0.5):
 
 def listdir(vid_dir):
     if vid_dir is not None and os.path.isdir(vid_dir):
-        return sorted(os.listdir(vid_dir))
+        folders = [folder for folder in os.listdir(vid_dir) if os.path.isdir(os.path.join(vid_dir, folder))]
+        return sorted(folders)
     return []
 
 class CustomRadio(gr.Radio):
@@ -261,7 +266,7 @@ class CustomRadio(gr.Radio):
 class LabelMode(Enum):
     #PERSON = "Person"
     FULL_BODY_SKIN = "FullBodySkin"
-    HAND_PART_SKIN = "HandPartSkin"  # Added new label for "手部"
+    #HAND_PART_SKIN = "HandPartSkin"  # Added new label for "手部"
     SKIN_UNDER_LENSES  = "SkinUnderLenses"
     BIG_BEARD = "BigBeard"
     FACE_TATOO = "FaceTattoo"
@@ -362,7 +367,7 @@ class ImageSegUI(UI):
             )
 
             # selecting an image directory
-            img_dirs_dropdown .select(
+            img_dirs_dropdown.select(
                 self.select_image_dir,
                 [img_dirs_dropdown ],
                 [selected_img_dir_text , mask_dir_field],
