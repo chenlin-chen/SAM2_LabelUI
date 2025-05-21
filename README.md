@@ -89,7 +89,7 @@ Once everything is installed, run the app using:
 
 * bash
   ```sh
-  python app.py --port 7890 --data_dir /data/SkinParsing --src_img_dir_name "LabelImgs/src" --ui_mode ui_seg 
+  python app.py --port 7890 --data_dir /data/SkinParsing --src_img_dir_name "SrcImgs/" --ui_mode ui_seg 
   ```
 
 This will launch a Gradio web interface in your browser where you can upload images and interact with SAM2 for segmentation tasks.
