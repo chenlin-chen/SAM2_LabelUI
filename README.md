@@ -73,7 +73,9 @@ You must also install SAM2 by following its official installation instructions:
 Clone this repository:
 * bash
   ```sh
-  git clone https://github.com/your-username/sam2-ui-testbed.git sam2_git
+  git clone https://github.com/your-username/sam2-ui-testbed.git sam2_git && cd sam2_git
+  
+  pip install -e .
   ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
